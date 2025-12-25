@@ -2,8 +2,8 @@
   "config": {
     "step": {
       "user": {
-        "title": "连接 BandwagonHost VPS",
-        "description": "请输入 KiwiVM 面板提供的 VEID 和 API Key。",
+        "title": "BandwagonHost",
+        "description": "Enter your BandwagonHost VEID and API Key.",
         "data": {
           "veid": "VEID",
           "api_key": "API Key"
@@ -11,12 +11,7 @@
       }
     },
     "error": {
-      "cannot_connect": "无法连接到服务器",
-      "invalid_auth": "认证失败",
-      "unknown": "未知错误"
-    },
-    "abort": {
-      "already_configured": "该 VPS 已配置"
+      "cannot_connect": "Failed to connect. Check VEID/API Key."
     }
   }
 }
