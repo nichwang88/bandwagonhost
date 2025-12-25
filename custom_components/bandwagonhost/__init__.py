@@ -10,14 +10,14 @@ from.const import DOMAIN, CONF_VEID, CONF_API_KEY
 from.coordinator import BandwagonHostCoordinator
 from.api import BandwagonHostAPI
 
-# 修复：明确定义支持的平台列表
+# [修复关键点] 必须定义支持的平台，否则传感器不会加载
 PLATFORMS: list[Platform] =
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """从配置条目设置集成。"""
     session = async_get_clientsession(hass)
     
-    # 确保从 entry.data 中正确获取参数
+    # [修复关键点] 从 data 字典中提取 veid 和 api_key
     api = BandwagonHostAPI(
         session, 
         entry.data, 
