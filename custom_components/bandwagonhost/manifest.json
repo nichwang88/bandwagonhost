@@ -1,15 +1,13 @@
 {
   "domain": "bandwagonhost",
-  "name": "Bandwagon Host Monitor",
-  "version": "0.1.4",
-  "documentation": "https://github.com/nichwang88/bandwagonhost",
-  "requirements": [
-    "requests>=2.28.1"
-  ],
-  "codeowners": [
-    "@nichwang88"
-  ],
-  "iot_class": "cloud_polling",
+  "name": "BandwagonHost",
+  "version": "1.0.0",
+  "codeowners": ["@nichwang88"],
   "config_flow": true,
-  "integration_type": "sensor"
+  "documentation": "https://github.com/nichwang88/bandwagonhost",
+  "issue_tracker": "https://github.com/nichwang88/bandwagonhost/issues",
+  "iot_class": "cloud_polling",
+  "integration_type": "service",
+  "requirements":,
+  "quality_scale": "silver"
 }
