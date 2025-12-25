@@ -1,37 +1,26 @@
-"""BandwagonHost 数据协调器。"""
+from __future__ import annotations
+
 from datetime import timedelta
-
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.update_coordinator import (
-    DataUpdateCoordinator,
-    UpdateFailed,
-)
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from.const import DOMAIN, LOGGER, SCAN_INTERVAL
-from.api import BandwagonHostAPI, BandwagonHostError
+from .api import BandwagonHostAPI
+from .const import DEFAULT_SCAN_INTERVAL_MINUTES
 
-class BandwagonHostCoordinator(DataUpdateCoordinator):
-    """管理从 BandwagonHost API 获取数据的类。"""
+class BandwagonHostCoordinator(DataUpdateCoordinator[dict]):
+  def __init__(self, hass: HomeAssistant, veid: str, api_key: str) -> None:
+    self.api = BandwagonHostAPI(async_get_clientsession(hass), veid, api_key)
 
-    def __init__(
-        self, 
-        hass: HomeAssistant, 
-        api: BandwagonHostAPI
-    ) -> None:
-        """初始化协调器。"""
-        self.api = api
-        self.veid = api._veid
+    super().__init__(
+      hass,
+      logger=__import__("logging").getLogger(__name__),
+      name="BandwagonHost",
+      update_interval=timedelta(minutes=DEFAULT_SCAN_INTERVAL_MINUTES),
+    )
 
-        super().__init__(
-            hass,
-            LOGGER,
-            name=DOMAIN,
-            update_interval=timedelta(minutes=SCAN_INTERVAL),
-        )
-
-    async def _async_update_data(self) -> dict:
-        """获取最新的数据。"""
-        try:
-            return await self.api.async_get_service_info()
-        except BandwagonHostError as err:
-            raise UpdateFailed(f"Error communicating with API: {err}") from err
+  async def _async_update_data(self) -> dict:
+    try:
+      return await self.api.async_get_status()
+    except Exception as err:
+      raise UpdateFailed(str(err)) from err
