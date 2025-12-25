@@ -23,13 +23,14 @@ class BandwagonHostConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            # 检查 VEID 是否已配置，防止重复添加
+            # 1. 唯一性检查
             await self.async_set_unique_id(str(user_input))
             self._abort_if_unique_id_configured()
 
-            # 验证凭证有效性
+            # 2. 验证凭证
             session = async_get_clientsession(self.hass)
-            # 修复：正确解包 user_input 字典
+            
+            # [修复关键点] 必须传入具体的字符串值，而不是整个字典
             api = BandwagonHostAPI(
                 session, 
                 user_input, 
@@ -46,11 +47,13 @@ class BandwagonHostConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
             else:
+                # 3. 验证通过，创建配置条目
                 return self.async_create_entry(
                     title=f"VPS {user_input}",
                     data=user_input,
                 )
 
+        # 定义表单
         data_schema = vol.Schema({
             vol.Required(CONF_VEID): str,
             vol.Required(CONF_API_KEY): str,
