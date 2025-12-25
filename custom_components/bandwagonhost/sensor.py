@@ -1,100 +1,53 @@
-"""支持 BandwagonHost 传感器。"""
 from __future__ import annotations
-from dataclasses import dataclass
-from typing import Any, Callable
 
-from homeassistant.components.sensor import (
-    SensorEntity,
-    SensorEntityDescription,
-    SensorStateClass,
-    SensorDeviceClass,
-)
+from dataclasses import dataclass
+from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfInformation
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.typing import StateType
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from.const import DOMAIN
-from.coordinator import BandwagonHostCoordinator
+from .const import DOMAIN
+from .coordinator import BandwagonHostCoordinator
 
-@dataclass
-class BandwagonHostSensorDescription(SensorEntityDescription):
-    """自定义传感器描述符，增加取值函数。"""
-    value_fn: Callable[[dict[str, Any]], StateType] = lambda _: None
+@dataclass(frozen=True, kw_only=True)
+class BwhSensorDescription(SensorEntityDescription):
+  value_key: str
 
-SENSOR_TYPES: tuple = (
-    BandwagonHostSensorDescription(
-        key="data_counter",
-        name="流量已用",
-        native_unit_of_measurement=UnitOfInformation.BYTES,
-        device_class=SensorDeviceClass.DATA_SIZE,
-        state_class=SensorStateClass.TOTAL_INCREASING,
-        value_fn=lambda data: data.get("data_counter"),
-    ),
-    BandwagonHostSensorDescription(
-        key="plan_monthly_data",
-        name="流量配额",
-        native_unit_of_measurement=UnitOfInformation.BYTES,
-        device_class=SensorDeviceClass.DATA_SIZE,
-        value_fn=lambda data: data.get("plan_monthly_data"),
-    ),
-    BandwagonHostSensorDescription(
-        key="plan_ram",
-        name="内存配额",
-        native_unit_of_measurement=UnitOfInformation.BYTES,
-        device_class=SensorDeviceClass.DATA_SIZE,
-        value_fn=lambda data: data.get("plan_ram"),
-    ),
-    BandwagonHostSensorDescription(
-        key="vm_type",
-        name="虚拟化类型",
-        icon="mdi:server",
-        value_fn=lambda data: data.get("vm_type"),
-    ),
-    BandwagonHostSensorDescription(
-        key="os",
-        name="操作系统",
-        icon="mdi:linux",
-        value_fn=lambda data: data.get("os"),
-    ),
+SENSORS: tuple[BwhSensorDescription, ...] = (
+  BwhSensorDescription(key="vps_state", name="VPS State", value_key="vps_state"),
+  BwhSensorDescription(key="ram_used", name="RAM Used", value_key="ram_used"),
+  BwhSensorDescription(key="disk_used", name="Disk Used", value_key="disk_used"),
+  # TODO: 按你 API 返回字段补齐
 )
 
 async def async_setup_entry(
-    hass: HomeAssistant,
-    entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+  hass: HomeAssistant,
+  entry: ConfigEntry,
+  async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """设置传感器平台。"""
-    coordinator: BandwagonHostCoordinator = hass.data[entry.entry_id]
-    async_add_entities(
-        BandwagonHostSensor(coordinator, description)
-        for description in SENSOR_TYPES
-    )
+  coordinator: BandwagonHostCoordinator = hass.data[DOMAIN][entry.entry_id]
+  async_add_entities(
+    BandwagonHostSensor(coordinator, entry, description) for description in SENSORS
+  )
 
-class BandwagonHostSensor(CoordinatorEntity, SensorEntity):
-    """BandwagonHost 传感器实体。"""
-    
-    entity_description: BandwagonHostSensorDescription
+class BandwagonHostSensor(CoordinatorEntity[BandwagonHostCoordinator], SensorEntity):
+  def __init__(
+    self,
+    coordinator: BandwagonHostCoordinator,
+    entry: ConfigEntry,
+    description: BwhSensorDescription,
+  ) -> None:
+    super().__init__(coordinator)
+    self.entity_description = description
+    self._attr_unique_id = f"{entry.unique_id}_{description.key}"
+    self._attr_device_info = {
+      "identifiers": {(DOMAIN, entry.unique_id)},
+      "name": f"BandwagonHost {entry.unique_id}",
+      "manufacturer": "BandwagonHost",
+    }
 
-    def __init__(
-        self,
-        coordinator: BandwagonHostCoordinator,
-        description: BandwagonHostSensorDescription,
-    ) -> None:
-        super().__init__(coordinator)
-        self.entity_description = description
-        self._attr_unique_id = f"{coordinator.veid}_{description.key}"
-        self._attr_has_entity_name = True
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, coordinator.veid)},
-            "name": f"VPS {coordinator.veid}",
-            "manufacturer": "BandwagonHost",
-            "model": "KVM VPS",
-            "configuration_url": "https://kiwivm.64clouds.com/",
-        }
-
-    @property
-    def native_value(self) -> StateType:
-        return self.entity_description.value_fn(self.coordinator.data)
+  @property
+  def native_value(self):
+    data = self.coordinator.data or {}
+    return data.get(self.entity_description.value_key)
