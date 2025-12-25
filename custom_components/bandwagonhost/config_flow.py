@@ -1,61 +1,58 @@
+"""BandwagonHost 集成的配置流处理程序。"""
 from __future__ import annotations
-
+from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.core import HomeAssistant
+from homeassistant.const import CONF_API_KEY
 from homeassistant.data_entry_flow import FlowResult
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .const import DOMAIN, CONF_VEID, CONF_API_KEY
+from.const import DOMAIN, CONF_VEID, LOGGER
+from.api import BandwagonHostAPI, BandwagonHostAuthError, BandwagonHostConnectionError
 
-# Step user: user 输入 VEID 和 API Key
 class BandwagonHostConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Config flow for Bandwagon Host integration."""
+    """处理 BandwagonHost 的配置流。"""
 
-    VERSION = 1  # 版本号，用于未来迁移
-    # 如果只允许单个配置实例，可以设置 SINGLE_CHECK = True，但这将阻止添加多个
-    # SINGLE_CHECK = True
-
-    def __init__(self) -> None:
-        """初始化临时存储用户输入的参数"""
-        self._data: dict[str, str] = {}
+    VERSION = 1
 
     async def async_step_user(
-        self, user_input: dict[str, str] | None = None
+        self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """第 1 步 — 用户通过 UI 增加集成时调用。"""
+        """处理用户发起的配置步骤。"""
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            # 用户点击提交后，暂存输入
-            veid = user_input.get(CONF_VEID)
-            api_key = user_input.get(CONF_API_KEY)
+            # 检查 VEID 是否已配置，防止重复添加
+            await self.async_set_unique_id(str(user_input))
+            self._abort_if_unique_id_configured()
 
-            # 可在此检查用户输入是否合法，例如访问 Bandwagon API 进行验证
-            # 如果验证失败，可以用 errors["base"] = "auth_failed"
-            # 例如：
-            # try:
-            #     await self.hass.async_add_executor_job(check_credentials, veid, api_key)
-            # except Exception:
-            #     errors["base"] = "auth_failed"
+            # 验证凭证有效性
+            session = async_get_clientsession(self.hass)
+            api = BandwagonHostAPI(session, user_input, user_input)
 
-            # 如果一切 OK，创建 config entry
-            if not errors:
-                self._data[CONF_VEID] = veid
-                self._data[CONF_API_KEY] = api_key
-
+            try:
+                await api.async_get_service_info()
+            except BandwagonHostAuthError:
+                errors["base"] = "invalid_auth"
+            except BandwagonHostConnectionError:
+                errors["base"] = "cannot_connect"
+            except Exception:  # pylint: disable=broad-except
+                LOGGER.exception("Unexpected exception")
+                errors["base"] = "unknown"
+            else:
                 return self.async_create_entry(
-                    title=f"Bandwagon ({veid})", data=self._data
+                    title=f"VPS {user_input}",
+                    data=user_input,
                 )
 
-        # 显示 UI 表单
+        data_schema = vol.Schema({
+            vol.Required(CONF_VEID): str,
+            vol.Required(CONF_API_KEY): str,
+        })
+
         return self.async_show_form(
             step_id="user",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_VEID, default=""): str,
-                    vol.Required(CONF_API_KEY, default=""): str,
-                }
-            ),
+            data_schema=data_schema,
             errors=errors,
         )
