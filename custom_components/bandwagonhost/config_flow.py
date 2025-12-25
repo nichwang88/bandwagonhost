@@ -1,66 +1,49 @@
-"""BandwagonHost 集成的配置流处理程序。"""
 from __future__ import annotations
-from typing import Any
-import voluptuous as vol
 
+import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.const import CONF_API_KEY
+from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from.const import DOMAIN, CONF_VEID, LOGGER
-from.api import BandwagonHostAPI, BandwagonHostAuthError, BandwagonHostConnectionError
+from .const import DOMAIN, CONF_VEID, CONF_API_KEY
+from .api import BandwagonHostAPI
 
-class BandwagonHostConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """处理 BandwagonHost 的配置流。"""
+STEP_USER_DATA_SCHEMA = vol.Schema(
+  {
+    vol.Required(CONF_VEID): str,
+    vol.Required(CONF_API_KEY): str,
+  }
+)
 
-    VERSION = 1
+async def _async_validate_input(hass: HomeAssistant, data: dict) -> None:
+  api = BandwagonHostAPI(async_get_clientsession(hass), data[CONF_VEID], data[CONF_API_KEY])
+  # 做一次轻量 API 调用验证（失败就抛异常）
+  await api.async_get_status()
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """处理用户发起的配置步骤。"""
-        errors: dict[str, str] = {}
+class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+  VERSION = 1
 
-        if user_input is not None:
-            # 1. 唯一性检查
-            await self.async_set_unique_id(str(user_input))
-            self._abort_if_unique_id_configured()
+  async def async_step_user(self, user_input: dict | None = None) -> FlowResult:
+    errors: dict[str, str] = {}
 
-            # 2. 验证凭证
-            session = async_get_clientsession(self.hass)
-            
-            # [修复关键点] 必须传入具体的字符串值，而不是整个字典
-            api = BandwagonHostAPI(
-                session, 
-                user_input, 
-                user_input
-            )
+    if user_input is not None:
+      try:
+        await _async_validate_input(self.hass, user_input)
+      except Exception:
+        errors["base"] = "cannot_connect"
+      else:
+        # 防重复（同 veid）
+        await self.async_set_unique_id(user_input[CONF_VEID])
+        self._abort_if_unique_id_configured()
 
-            try:
-                await api.async_get_service_info()
-            except BandwagonHostAuthError:
-                errors["base"] = "invalid_auth"
-            except BandwagonHostConnectionError:
-                errors["base"] = "cannot_connect"
-            except Exception:  # pylint: disable=broad-except
-                LOGGER.exception("Unexpected exception")
-                errors["base"] = "unknown"
-            else:
-                # 3. 验证通过，创建配置条目
-                return self.async_create_entry(
-                    title=f"VPS {user_input}",
-                    data=user_input,
-                )
-
-        # 定义表单
-        data_schema = vol.Schema({
-            vol.Required(CONF_VEID): str,
-            vol.Required(CONF_API_KEY): str,
-        })
-
-        return self.async_show_form(
-            step_id="user",
-            data_schema=data_schema,
-            errors=errors,
+        return self.async_create_entry(
+          title=f"BandwagonHost {user_input[CONF_VEID]}",
+          data=user_input,
         )
+
+    return self.async_show_form(
+      step_id="user",
+      data_schema=STEP_USER_DATA_SCHEMA,
+      errors=errors,
+    )
