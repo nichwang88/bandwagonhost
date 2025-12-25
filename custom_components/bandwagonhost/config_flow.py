@@ -29,7 +29,12 @@ class BandwagonHostConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             # 验证凭证有效性
             session = async_get_clientsession(self.hass)
-            api = BandwagonHostAPI(session, user_input, user_input)
+            # 修复：正确解包 user_input 字典
+            api = BandwagonHostAPI(
+                session, 
+                user_input, 
+                user_input
+            )
 
             try:
                 await api.async_get_service_info()
