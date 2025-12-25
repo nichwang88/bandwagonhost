@@ -1,73 +1,100 @@
-import logging
-from datetime import timedelta
-import requests
-import voluptuous as vol
-from homeassistant.components.sensor import SensorEntity
-from homeassistant.const import CONF_API_KEY
-from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from .const import DOMAIN, DEFAULT_SCAN_INTERVAL
+"""支持 BandwagonHost 传感器。"""
+from __future__ import annotations
+from dataclasses import dataclass
+from typing import Any, Callable
 
-_LOGGER = logging.getLogger(__name__)
+from homeassistant.components.sensor import (
+    SensorEntity,
+    SensorEntityDescription,
+    SensorStateClass,
+    SensorDeviceClass,
+)
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import UnitOfInformation
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.typing import StateType
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-PLATFORM_SCHEMA = vol.Schema({
-    DOMAIN: vol.Schema({
-        vol.Required("veid"): cv.string,
-        vol.Required(CONF_API_KEY): cv.string,
-        vol.Optional("monitored_conditions", default=[]): vol.All(cv.ensure_list, [cv.string]),
-    })
-}, extra=vol.ALLOW_EXTRA)
+from.const import DOMAIN
+from.coordinator import BandwagonHostCoordinator
 
-async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
-    conf = config.get(DOMAIN)
-    if not conf:
-        return
-    coordinator = BandwagonCoordinator(hass, conf)
-    await coordinator.async_refresh()
+@dataclass
+class BandwagonHostSensorDescription(SensorEntityDescription):
+    """自定义传感器描述符，增加取值函数。"""
+    value_fn: Callable[[dict[str, Any]], StateType] = lambda _: None
 
-    sensors = [
-        BandwagonSensor(coordinator, condition)
-        for condition in conf["monitored_conditions"]
-    ]
-    async_add_entities(sensors, update_before_add=True)
+SENSOR_TYPES: tuple = (
+    BandwagonHostSensorDescription(
+        key="data_counter",
+        name="流量已用",
+        native_unit_of_measurement=UnitOfInformation.BYTES,
+        device_class=SensorDeviceClass.DATA_SIZE,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        value_fn=lambda data: data.get("data_counter"),
+    ),
+    BandwagonHostSensorDescription(
+        key="plan_monthly_data",
+        name="流量配额",
+        native_unit_of_measurement=UnitOfInformation.BYTES,
+        device_class=SensorDeviceClass.DATA_SIZE,
+        value_fn=lambda data: data.get("plan_monthly_data"),
+    ),
+    BandwagonHostSensorDescription(
+        key="plan_ram",
+        name="内存配额",
+        native_unit_of_measurement=UnitOfInformation.BYTES,
+        device_class=SensorDeviceClass.DATA_SIZE,
+        value_fn=lambda data: data.get("plan_ram"),
+    ),
+    BandwagonHostSensorDescription(
+        key="vm_type",
+        name="虚拟化类型",
+        icon="mdi:server",
+        value_fn=lambda data: data.get("vm_type"),
+    ),
+    BandwagonHostSensorDescription(
+        key="os",
+        name="操作系统",
+        icon="mdi:linux",
+        value_fn=lambda data: data.get("os"),
+    ),
+)
 
-class BandwagonCoordinator(DataUpdateCoordinator):
-    def __init__(self, hass, conf):
-        super().__init__(
-            hass,
-            _LOGGER,
-            name="Bandwagon Host",
-            update_interval=timedelta(seconds=DEFAULT_SCAN_INTERVAL),
-        )
-        self.conf = conf
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """设置传感器平台。"""
+    coordinator: BandwagonHostCoordinator = hass.data[entry.entry_id]
+    async_add_entities(
+        BandwagonHostSensor(coordinator, description)
+        for description in SENSOR_TYPES
+    )
 
-    async def _async_update_data(self):
-        try:
-            return await hass.async_add_executor_job(self.fetch_status)
-        except Exception as err:
-            raise UpdateFailed(err)
+class BandwagonHostSensor(CoordinatorEntity, SensorEntity):
+    """BandwagonHost 传感器实体。"""
+    
+    entity_description: BandwagonHostSensorDescription
 
-    def fetch_status(self):
-        url = f"https://api.vultr.com/{self.conf['veid']}"
-        headers = {"API-Key": self.conf["api_key"]}
-        return requests.get(url, headers=headers).json()
-
-class BandwagonSensor(SensorEntity):
-    def __init__(self, coordinator, condition):
-        self.coordinator = coordinator
-        self.condition = condition
+    def __init__(
+        self,
+        coordinator: BandwagonHostCoordinator,
+        description: BandwagonHostSensorDescription,
+    ) -> None:
+        super().__init__(coordinator)
+        self.entity_description = description
+        self._attr_unique_id = f"{coordinator.veid}_{description.key}"
+        self._attr_has_entity_name = True
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, coordinator.veid)},
+            "name": f"VPS {coordinator.veid}",
+            "manufacturer": "BandwagonHost",
+            "model": "KVM VPS",
+            "configuration_url": "https://kiwivm.64clouds.com/",
+        }
 
     @property
-    def unique_id(self):
-        return f"{DOMAIN}_{self.condition}"
-
-    @property
-    def name(self):
-        return f"Bandwagon {self.condition}"
-
-    @property
-    def state(self):
-        return self.coordinator.data.get(self.condition)
-
-    async def async_update(self):
-        await self.coordinator.async_request_refresh()
+    def native_value(self) -> StateType:
+        return self.entity_description.value_fn(self.coordinator.data)
