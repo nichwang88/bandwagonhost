@@ -1,7 +1,9 @@
-DOMAIN = "bandwagonhost"
+"""Constants for the BandwagonHost integration."""
+from typing import Final
 
-CONF_VEID = "veid"
-CONF_API_KEY = "api_key"
+DOMAIN: Final = "bandwagonhost"
 
-PLATFORMS: list[str] = ["sensor"]
-DEFAULT_SCAN_INTERVAL_MINUTES = 20
+CONF_VEID: Final = "veid"
+CONF_API_KEY: Final = "api_key"
+
+DEFAULT_SCAN_INTERVAL_MINUTES: Final = 20

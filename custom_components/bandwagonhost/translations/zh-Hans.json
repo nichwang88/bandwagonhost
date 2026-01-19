@@ -1,0 +1,84 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "连接到搬瓦工",
+        "description": "请输入您的搬瓦工 VEID 和 API Key。您可以在 KiwiVM 控制面板中找到这些信息。",
+        "data": {
+          "veid": "VEID",
+          "api_key": "API 密钥"
+        },
+        "data_description": {
+          "veid": "KiwiVM 控制面板中的 VPS ID",
+          "api_key": "KiwiVM 控制面板中的 API 密钥"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "连接失败，请检查网络连接。",
+      "invalid_auth": "VEID 或 API Key 无效，请核实您的凭据。",
+      "unknown": "发生未知错误。"
+    },
+    "abort": {
+      "already_configured": "此 VPS 已配置。"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "vps_state": {
+        "name": "VPS 状态"
+      },
+      "bandwidth_used": {
+        "name": "已用流量"
+      },
+      "bandwidth_remaining": {
+        "name": "剩余流量"
+      },
+      "bandwidth_total": {
+        "name": "总流量"
+      },
+      "bandwidth_used_percent": {
+        "name": "流量使用率"
+      },
+      "disk_used": {
+        "name": "已用磁盘"
+      },
+      "disk_total": {
+        "name": "磁盘总量"
+      },
+      "disk_used_percent": {
+        "name": "磁盘使用率"
+      },
+      "ram_total": {
+        "name": "内存总量"
+      },
+      "ram_used": {
+        "name": "已用内存"
+      },
+      "ram_used_percent": {
+        "name": "内存使用率"
+      },
+      "hostname": {
+        "name": "主机名"
+      },
+      "os": {
+        "name": "操作系统"
+      },
+      "node_location": {
+        "name": "节点位置"
+      },
+      "ip_address": {
+        "name": "IP 地址"
+      },
+      "load_average": {
+        "name": "负载均值"
+      },
+      "cpu_throttled": {
+        "name": "CPU 限速"
+      },
+      "suspended": {
+        "name": "已暂停"
+      }
+    }
+  }
+}

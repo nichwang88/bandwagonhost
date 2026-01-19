@@ -1,6 +1,5 @@
 {
-    "name": "bandwagonhost",
-    "country": "CN",
-    "render_readme": true,
-    "domains": []
-  }
+  "name": "BandwagonHost",
+  "render_readme": true,
+  "homeassistant": "2024.1.0"
+}

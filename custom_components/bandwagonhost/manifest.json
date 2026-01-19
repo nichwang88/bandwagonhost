@@ -4,8 +4,10 @@
   "codeowners": ["@nichwang88"],
   "config_flow": true,
   "documentation": "https://github.com/nichwang88/bandwagonhost",
+  "homeassistant": "2024.1.0",
+  "integration_type": "service",
   "issue_tracker": "https://github.com/nichwang88/bandwagonhost/issues",
   "iot_class": "cloud_polling",
-  "version": "0.2.0",
-  "requirements": []
+  "version": "1.0.0",
+  "requirements": ["aiohttp>=3.8.0"]
 }
