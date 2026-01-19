@@ -8,6 +8,6 @@
   "integration_type": "service",
   "issue_tracker": "https://github.com/nichwang88/bandwagonhost/issues",
   "iot_class": "cloud_polling",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "requirements": ["aiohttp>=3.8.0"]
 }

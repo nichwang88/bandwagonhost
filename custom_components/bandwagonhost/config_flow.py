@@ -33,17 +33,20 @@ async def _async_validate_input(hass: HomeAssistant, data: dict[str, Any]) -> di
 
     Returns info to store in the config entry.
     """
+    _LOGGER.debug("Validating input for VEID: %s", data[CONF_VEID])
+
     api = BandwagonHostAPI(
         session=async_get_clientsession(hass),
-        veid=data[CONF_VEID],
-        api_key=data[CONF_API_KEY],
+        veid=data[CONF_VEID].strip(),
+        api_key=data[CONF_API_KEY].strip(),
     )
 
     # Test the connection by getting service info
     info = await api.async_get_service_info()
+    _LOGGER.debug("Successfully retrieved service info: %s", info.get("hostname", "unknown"))
 
     return {
-        "title": info.get("hostname", f"BandwagonHost {data[CONF_VEID]}"),
+        "title": info.get("hostname") or f"BandwagonHost {data[CONF_VEID]}",
         "hostname": info.get("hostname", ""),
         "plan": info.get("plan", ""),
     }
@@ -63,23 +66,30 @@ class BandwagonHostConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             try:
                 info = await _async_validate_input(self.hass, user_input)
-            except BandwagonHostAuthError:
+            except BandwagonHostAuthError as err:
+                _LOGGER.warning("Authentication failed: %s", err)
                 errors["base"] = "invalid_auth"
-            except BandwagonHostConnectionError:
+            except BandwagonHostConnectionError as err:
+                _LOGGER.warning("Connection error: %s", err)
                 errors["base"] = "cannot_connect"
-            except BandwagonHostAPIError:
+            except BandwagonHostAPIError as err:
+                _LOGGER.warning("API error: %s", err)
                 errors["base"] = "cannot_connect"
-            except Exception:
-                _LOGGER.exception("Unexpected exception")
+            except Exception as err:
+                _LOGGER.exception("Unexpected exception: %s", err)
                 errors["base"] = "unknown"
             else:
                 # Set unique ID to prevent duplicate entries
-                await self.async_set_unique_id(user_input[CONF_VEID])
+                veid = user_input[CONF_VEID].strip()
+                await self.async_set_unique_id(veid)
                 self._abort_if_unique_id_configured()
 
                 return self.async_create_entry(
                     title=info["title"],
-                    data=user_input,
+                    data={
+                        CONF_VEID: veid,
+                        CONF_API_KEY: user_input[CONF_API_KEY].strip(),
+                    },
                 )
 
         return self.async_show_form(

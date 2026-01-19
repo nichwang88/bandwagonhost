@@ -45,28 +45,54 @@ class BandwagonHostAPI:
         if params:
             request_params.update(params)
 
+        _LOGGER.debug("Making request to %s", url)
+
         try:
             async with asyncio.timeout(REQUEST_TIMEOUT):
                 async with self.session.get(url, params=request_params) as response:
+                    _LOGGER.debug("Response status: %s", response.status)
+
+                    # Try to read response text first for debugging
+                    response_text = await response.text()
+                    _LOGGER.debug("Response text: %s", response_text[:500] if response_text else "empty")
+
+                    # Check for HTTP errors
                     if response.status == 401:
                         raise BandwagonHostAuthError("Invalid VEID or API key")
                     if response.status == 429:
                         self._rate_limited = True
                         raise BandwagonHostAPIError("Rate limited by API")
-                    response.raise_for_status()
+                    if response.status >= 400:
+                        raise BandwagonHostConnectionError(
+                            f"HTTP error {response.status}: {response_text[:200]}"
+                        )
 
-                    data = await response.json()
+                    # Try to parse JSON
+                    try:
+                        import json
+                        data = json.loads(response_text)
+                    except (json.JSONDecodeError, ValueError) as err:
+                        _LOGGER.error("Failed to parse JSON response: %s", response_text[:200])
+                        raise BandwagonHostAPIError(f"Invalid JSON response: {err}") from err
 
-                    if data.get("error") == 1:
-                        error_msg = data.get("message", "Unknown API error")
-                        raise BandwagonHostAPIError(error_msg)
+                    # Check for API-level errors
+                    # BandwagonHost API returns error: 0 for success
+                    # If error key exists and is not 0, it's an error
+                    if isinstance(data, dict):
+                        error_code = data.get("error")
+                        if error_code is not None and error_code != 0:
+                            error_msg = data.get("message", "Unknown API error")
+                            _LOGGER.error("API error %s: %s", error_code, error_msg)
+                            raise BandwagonHostAPIError(f"{error_msg}")
 
                     self._rate_limited = False
                     return data
 
         except asyncio.TimeoutError as err:
+            _LOGGER.error("Request timeout for %s", endpoint)
             raise BandwagonHostConnectionError(f"Request timeout: {endpoint}") from err
         except aiohttp.ClientError as err:
+            _LOGGER.error("Connection error for %s: %s", endpoint, err)
             raise BandwagonHostConnectionError(f"Connection error: {err}") from err
 
     async def async_get_service_info(self) -> dict[str, Any]:
